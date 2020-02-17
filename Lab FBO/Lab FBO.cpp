@@ -151,7 +151,7 @@ void draw_gui()
 	ImGui_ImplGlut_NewFrame();
 
 	ImGui::Checkbox("Edge Detection", &isEdge);
-	ImGui::Image((void*)pick_texture, ImVec2(512, 512));
+	ImGui::Image((void*)pick_texture, ImVec2(256, 256));
 
 	ImGui::Render();
 }
@@ -171,7 +171,7 @@ void display()
    glBindTexture(GL_TEXTURE_2D, fbo_texture);
    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tex_w);
    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tex_h);
-   glViewport(0, 0, tex_w, tex_h);
+   //glViewport(0, 0, tex_w, tex_h);
 
    //Clear the FBO.
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //Lab assignment: don't forget to also clear depth
@@ -185,7 +185,7 @@ void display()
    glBindTexture(GL_TEXTURE_2D, pick_texture);
    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tex_w);
    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tex_h);
-   glViewport(0, 0, tex_w, tex_h);
+   //glViewport(0, 0, tex_w, tex_h);
 
    //Clear the FBO.
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //Lab assignment: don't forget to also clear depth
@@ -194,8 +194,8 @@ void display()
    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Do not render the next pass to FBO.
    glDrawBuffer(GL_BACK); // Render to back buffer.
 
-   const int w = glutGet(GLUT_SCREEN_WIDTH);
-   const int h = glutGet(GLUT_SCREEN_HEIGHT);
+   const int w = glutGet(GLUT_WINDOW_WIDTH);
+   const int h = glutGet(GLUT_WINDOW_HEIGHT);
    glViewport(0, 0, w, h); //Render to the full viewport
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //Clear the back buffer
 
@@ -392,7 +392,7 @@ int main (int argc, char **argv)
    glutInit(&argc, argv); 
    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
    glutInitWindowPosition (5, 5);
-   glutInitWindowSize (2560, 1440);
+   glutInitWindowSize (1280, 720);
    int win = glutCreateWindow ("HW 2 Yuanpei Zhao");
 
    printGlInfo();
