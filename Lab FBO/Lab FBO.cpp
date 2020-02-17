@@ -179,11 +179,13 @@ void keyboard(unsigned char key, int x, int y)
    }
 }
 
+/*
 void reshape(int w, int h) 
 {
 	glViewport(0, 0, w, h);
 	aspect = float(w) / float(h);
 }
+*/
 
 void printGlInfo()
 {
@@ -223,6 +225,8 @@ void initOpenGl()
    }
 
   
+   //const int w = glutGet(GLUT_SCREEN_WIDTH);
+   //const int h = glutGet(GLUT_SCREEN_HEIGHT);
    const int w = 1280;
    const int h = 720;
    //Create texture to render pass 1 into.
@@ -270,7 +274,7 @@ int main (int argc, char **argv)
    glutDisplayFunc(display); 
    glutKeyboardFunc(keyboard);
    glutIdleFunc(idle);
-   glutReshapeFunc(reshape);
+   //glutReshapeFunc(reshape);
 
    initOpenGl();
 
