@@ -1,4 +1,4 @@
-#version 400            
+#version 430            
 uniform mat4 PVM;
 uniform int pass;
 
