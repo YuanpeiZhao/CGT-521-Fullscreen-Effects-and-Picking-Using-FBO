@@ -17,6 +17,7 @@
 #include "InitShader.h"
 #include "LoadMesh.h"
 #include "LoadTexture.h"
+#include "imgui_impl_glut.h"
 
 static const std::string vertex_shader("fbo_vs.glsl");
 static const std::string fragment_shader("fbo_fs.glsl");
@@ -30,12 +31,15 @@ GLuint quad_vbo = -1;
 GLuint fbo_id = -1;       // Framebuffer object,
 GLuint rbo_id = -1;       // and Renderbuffer (for depth buffering)
 GLuint fbo_texture = -1;  // Texture rendered into.
+GLuint pick_texture = -1;
 
 static const std::string mesh_name = "Amago0.obj";
 static const std::string texture_name = "AmagoT.bmp";
 MeshData mesh_data;
 float time_sec = 0.0f;
 float aspect = 1280.0f /720.0f;
+bool isEdge = false;
+int pickedID = -1;
 
 bool check_framebuffer_status();
 
@@ -45,7 +49,7 @@ void draw_pass_1()
 
    glm::mat4 M = glm::rotate(10.0f*time_sec, glm::vec3(0.0f, 1.0f, 0.0f))*glm::scale(glm::vec3(mesh_data.mScaleFactor));
    glm::mat4 V = glm::lookAt(glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-   glm::mat4 P = glm::perspective(40.0f, aspect, 0.1f, 100.0f);
+   glm::mat4 P = glm::perspective(80.0f, aspect, 0.1f, 100.0f);
 
    int pass_loc = glGetUniformLocation(shader_program, "pass");
    if(pass_loc != -1)
@@ -68,18 +72,64 @@ void draw_pass_1()
       glUniform1i(tex_loc, 0); // we bound our texture to texture unit 0
    }
 
-   glBindVertexArray(mesh_data.mVao);
-	glDrawElements(GL_TRIANGLES, mesh_data.mNumIndices, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(mesh_data.mVao);
+	glDrawElementsInstanced(GL_TRIANGLES, mesh_data.mNumIndices, GL_UNSIGNED_INT, 0, 9);
 
 }
 
 void draw_pass_2()
 {
-   const int pass = 2;
+	const int pass = 2;
+
+	glm::mat4 M = glm::rotate(10.0f * time_sec, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::scale(glm::vec3(mesh_data.mScaleFactor));
+	glm::mat4 V = glm::lookAt(glm::vec3(0.0f, 1.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 P = glm::perspective(80.0f, aspect, 0.1f, 100.0f);
+
+	int pass_loc = glGetUniformLocation(shader_program, "pass");
+	if (pass_loc != -1)
+	{
+		glUniform1i(pass_loc, pass);
+	}
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture_id);
+	int PVM_loc = glGetUniformLocation(shader_program, "PVM");
+	if (PVM_loc != -1)
+	{
+		glm::mat4 PVM = P * V * M;
+		glUniformMatrix4fv(PVM_loc, 1, false, glm::value_ptr(PVM));
+	}
+
+	int tex_loc = glGetUniformLocation(shader_program, "texture");
+	if (tex_loc != -1)
+	{
+		glUniform1i(tex_loc, 0); // we bound our texture to texture unit 0
+	}
+
+	glBindVertexArray(mesh_data.mVao);
+	glDrawElementsInstanced(GL_TRIANGLES, mesh_data.mNumIndices, GL_UNSIGNED_INT, 0, 9);
+
+}
+
+void draw_pass_3()
+{
+   const int pass = 3;
    int pass_loc = glGetUniformLocation(shader_program, "pass");
    if(pass_loc != -1)
    {
       glUniform1i(pass_loc, pass);
+   }
+
+   int picked_loc = glGetUniformLocation(shader_program, "pickedID");
+   if (picked_loc != -1)
+   {
+	   glUniform1i(picked_loc, pickedID);
+   }
+
+   int edge_loc = glGetUniformLocation(shader_program, "edgeDetect");
+   if (edge_loc != -1)
+   {
+	   glUniform1i(edge_loc, isEdge);
    }
 
    glActiveTexture(GL_TEXTURE0);
@@ -94,6 +144,16 @@ void draw_pass_2()
    glBindVertexArray(quad_vao);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+}
+
+void draw_gui()
+{
+	ImGui_ImplGlut_NewFrame();
+
+	ImGui::Checkbox("Edge Detection", &isEdge);
+	ImGui::Image((void*)pick_texture, ImVec2(512, 512));
+
+	ImGui::Render();
 }
 
 // glut display callback function.
@@ -116,6 +176,20 @@ void display()
    //Clear the FBO.
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //Lab assignment: don't forget to also clear depth
    draw_pass_1();
+
+   glBindFramebuffer(GL_FRAMEBUFFER, fbo_id); // Render to FBO.
+   glDrawBuffer(GL_COLOR_ATTACHMENT1); //Out variable in frag shader will be written to the texture attached to GL_COLOR_ATTACHMENT0.
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+   //Make the viewport match the FBO texture size.
+   glBindTexture(GL_TEXTURE_2D, pick_texture);
+   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &tex_w);
+   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &tex_h);
+   glViewport(0, 0, tex_w, tex_h);
+
+   //Clear the FBO.
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //Lab assignment: don't forget to also clear depth
+   draw_pass_2();
          
    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Do not render the next pass to FBO.
    glDrawBuffer(GL_BACK); // Render to back buffer.
@@ -125,7 +199,9 @@ void display()
    glViewport(0, 0, w, h); //Render to the full viewport
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); //Clear the back buffer
 
-   draw_pass_2();
+   draw_pass_3();
+
+   draw_gui();
    
    glutSwapBuffers();
 }
@@ -148,7 +224,7 @@ void reload_shader()
    }
    else
    {
-      glClearColor(0.35f, 0.35f, 0.35f, 0.0f);
+      glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
       if(shader_program != -1)
       {
@@ -168,6 +244,7 @@ void reload_shader()
 // This function gets called when an ASCII key is pressed
 void keyboard(unsigned char key, int x, int y)
 {
+	ImGui_ImplGlut_KeyCallback(key);
    std::cout << "key : " << key << ", x: " << x << ", y: " << y << std::endl;
 
    switch(key)
@@ -182,7 +259,50 @@ void keyboard(unsigned char key, int x, int y)
 void reshape(int w, int h) 
 {
 	glViewport(0, 0, w, h);
-	aspect = float(w) / float(h);
+	//aspect = float(w) / float(h);
+}
+
+void keyboard_up(unsigned char key, int x, int y)
+{
+	ImGui_ImplGlut_KeyUpCallback(key);
+}
+
+void special_up(int key, int x, int y)
+{
+	ImGui_ImplGlut_SpecialUpCallback(key);
+}
+
+void passive(int x, int y)
+{
+	ImGui_ImplGlut_PassiveMouseMotionCallback(x, y);
+}
+
+void special(int key, int x, int y)
+{
+	ImGui_ImplGlut_SpecialCallback(key);
+}
+
+void motion(int x, int y)
+{
+	ImGui_ImplGlut_MouseMotionCallback(x, y);
+}
+
+void mouse(int button, int state, int x, int y)
+{
+	ImGui_ImplGlut_MouseButtonCallback(button, state);
+
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	{
+		GLubyte buffer[3]; 
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo_id); 
+		glReadBuffer(GL_COLOR_ATTACHMENT1); 
+		glPixelStorei(GL_PACK_ALIGNMENT, 1); 
+		glReadPixels(x, glutGet(GLUT_WINDOW_HEIGHT) - y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, buffer); 
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		pickedID = int(float(buffer[0]) * 10.0f / 255.0f + 0.5f) - 1;
+		std::cout << pickedID << std::endl;
+	}
 }
 
 void printGlInfo()
@@ -221,7 +341,6 @@ void initOpenGl()
       glEnableVertexAttribArray(pos_loc);
 	   glVertexAttribPointer(pos_loc, 3, GL_FLOAT, false, 0, 0);
    }
-
   
    const int w = glutGet(GLUT_SCREEN_WIDTH);
    const int h = glutGet(GLUT_SCREEN_HEIGHT);
@@ -237,6 +356,16 @@ void initOpenGl()
    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
    glBindTexture(GL_TEXTURE_2D, 0);   
 
+   // Create Pick Texture
+   glGenTextures(1, &pick_texture);
+   glBindTexture(GL_TEXTURE_2D, pick_texture);
+   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+   glBindTexture(GL_TEXTURE_2D, 0);
+
    //Lab assignment: Create renderbuffer for depth.
    glGenRenderbuffers(1, &rbo_id);
    glBindRenderbuffer(GL_RENDERBUFFER, rbo_id);
@@ -246,6 +375,7 @@ void initOpenGl()
    glGenFramebuffers(1, &fbo_id);
    glBindFramebuffer(GL_FRAMEBUFFER, fbo_id);
    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo_texture, 0);
+   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, pick_texture, 0);
    
    //Lab assignment: attach depth renderbuffer to FBO
    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo_id);
@@ -262,7 +392,7 @@ int main (int argc, char **argv)
    glutInit(&argc, argv); 
    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
    glutInitWindowPosition (5, 5);
-   glutInitWindowSize (1280, 720);
+   glutInitWindowSize (2560, 1440);
    int win = glutCreateWindow ("HW 2 Yuanpei Zhao");
 
    printGlInfo();
@@ -272,8 +402,15 @@ int main (int argc, char **argv)
    glutKeyboardFunc(keyboard);
    glutIdleFunc(idle);
    glutReshapeFunc(reshape);
+   glutSpecialFunc(special);
+   glutKeyboardUpFunc(keyboard_up);
+   glutSpecialUpFunc(special_up);
+   glutMouseFunc(mouse);
+   glutMotionFunc(motion);
+   glutPassiveMotionFunc(motion);
 
    initOpenGl();
+   ImGui_ImplGlut_Init(); // initialize the imgui system
 
    //Enter the glut event loop.
    glutMainLoop();
